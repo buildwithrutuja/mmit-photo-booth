@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -303,6 +305,12 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
+  int _currentPhoto = 0;
+  int _countdown = 0;
+  bool _isCapturing = false;
+
+  final List<XFile> _photos = [];
+
   @override
   void initState() {
     super.initState();
@@ -370,6 +378,84 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  Future<void> _startPhotoSequence() async {
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _isCapturing) {
+      return;
+    }
+
+    setState(() {
+      _isCapturing = true;
+      _currentPhoto = 0;
+      _countdown = 0;
+      _photos.clear();
+    });
+
+    for (int photoNumber = 1; photoNumber <= 4; photoNumber++) {
+      if (!mounted) return;
+
+      setState(() {
+        _currentPhoto = photoNumber;
+      });
+
+      // Countdown: 3, 2, 1
+      for (int count = 3; count >= 1; count--) {
+        if (!mounted) return;
+
+        setState(() {
+          _countdown = count;
+        });
+
+        await Future.delayed(const Duration(seconds: 1));
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _countdown = 0;
+      });
+
+      try {
+        final XFile photo = await _controller!.takePicture();
+        _photos.add(photo);
+      } on CameraException {
+        if (!mounted) return;
+
+        setState(() {
+          _isCapturing = false;
+          _countdown = 0;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to capture the photo.')),
+        );
+
+        return;
+      }
+
+      // Short pause before next countdown.
+      if (photoNumber < 4) {
+        await Future.delayed(const Duration(milliseconds: 800));
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isCapturing = false;
+      _countdown = 0;
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            PhotoPreviewScreen(photos: List<XFile>.from(_photos)),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _controller?.dispose();
@@ -381,7 +467,7 @@ class _CameraScreenState extends State<CameraScreen> {
     // Camera is still initializing.
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Color(0xFF0B0B0B),
+        backgroundColor: Colors.black,
         body: Center(
           child: CircularProgressIndicator(color: Color(0xFFF2E7D0)),
         ),
@@ -403,9 +489,7 @@ class _CameraScreenState extends State<CameraScreen> {
                   color: Color(0xFFF2E7D0),
                   size: 64,
                 ),
-
                 const SizedBox(height: 24),
-
                 Text(
                   _errorMessage!,
                   textAlign: TextAlign.center,
@@ -414,9 +498,7 @@ class _CameraScreenState extends State<CameraScreen> {
                     fontSize: 18,
                   ),
                 ),
-
                 const SizedBox(height: 28),
-
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('BACK'),
@@ -435,7 +517,9 @@ class _CameraScreenState extends State<CameraScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // Live front-camera preview
+            // ==================================================
+            // LIVE FRONT CAMERA PREVIEW
+            // ==================================================
             Positioned.fill(
               child: ClipRect(
                 child: FittedBox(
@@ -448,9 +532,10 @@ class _CameraScreenState extends State<CameraScreen> {
                 ),
               ),
             ),
-            // Live front-camera preview
 
-            // Vintage top bar
+            // ==================================================
+            // VINTAGE TOP BAR
+            // ==================================================
             Positioned(
               top: 0,
               left: 0,
@@ -462,15 +547,15 @@ class _CameraScreenState extends State<CameraScreen> {
                 child: Row(
                   children: [
                     IconButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _isCapturing
+                          ? null
+                          : () => Navigator.pop(context),
                       icon: const Icon(
                         Icons.arrow_back,
                         color: Color(0xFFF2E7D0),
                       ),
                     ),
-
                     const Spacer(),
-
                     const Text(
                       'SHENOVA • MMIT',
                       style: TextStyle(
@@ -480,40 +565,256 @@ class _CameraScreenState extends State<CameraScreen> {
                         letterSpacing: 2,
                       ),
                     ),
-
                     const Spacer(),
-
                     const SizedBox(width: 48),
                   ],
                 ),
               ),
             ),
 
-            // Camera status
-            Positioned(
-              bottom: 25,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xCC3B2A24),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'READY',
-                    style: TextStyle(
-                      color: Color(0xFFF2E7D0),
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 3,
+            // ==================================================
+            // PHOTO NUMBER
+            // ==================================================
+            if (_isCapturing)
+              Positioned(
+                top: 85,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xCC3B2A24),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'PHOTO $_currentPhoto OF 4',
+                      style: const TextStyle(
+                        color: Color(0xFFF2E7D0),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                      ),
                     ),
                   ),
                 ),
+              ),
+
+            // ==================================================
+            // COUNTDOWN
+            // ==================================================
+            if (_countdown > 0)
+              Positioned.fill(
+                child: Center(
+                  child: Text(
+                    '$_countdown',
+                    style: const TextStyle(
+                      color: Color(0xFFF2E7D0),
+                      fontSize: 100,
+                      fontWeight: FontWeight.bold,
+                      shadows: [Shadow(color: Colors.black87, blurRadius: 15)],
+                    ),
+                  ),
+                ),
+              ),
+
+            // ==================================================
+            // CAPTURE BUTTON
+            // ==================================================
+            Positioned(
+              bottom: 30,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: _isCapturing ? null : _startPhotoSequence,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: _isCapturing ? 0.45 : 1.0,
+                    child: Container(
+                      width: 82,
+                      height: 82,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFF2E7D0),
+                        border: Border.all(
+                          color: const Color(0xFF8B6F47),
+                          width: 5,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black45,
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt_rounded,
+                        color: Color(0xFF3B2A24),
+                        size: 34,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// PHOTO PREVIEW SCREEN
+// ============================================================
+
+class PhotoPreviewScreen extends StatelessWidget {
+  final List<XFile> photos;
+
+  const PhotoPreviewScreen({super.key, required this.photos});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2E7D0),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Color(0xFF3B2A24),
+                    ),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'YOUR PHOTOS',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF3B2A24),
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 48),
+                ],
+              ),
+            ),
+
+            const Text(
+              'SHENOVA',
+              style: TextStyle(
+                color: Color(0xFF8B6F47),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Four photos
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  itemCount: photos.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(
+                          color: const Color(0xFF8B6F47),
+                          width: 3,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x443B2A24),
+                            blurRadius: 8,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(5),
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Image.file(
+                          File(photos[index].path),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // Bottom buttons
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF3B2A24),
+                        side: const BorderSide(
+                          color: Color(0xFF3B2A24),
+                          width: 2,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text(
+                        'RETAKE',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 14),
+
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // Film-strip generation will go here.
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8E2F35),
+                        foregroundColor: const Color(0xFFF8EEDB),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text(
+                        'NEXT',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
