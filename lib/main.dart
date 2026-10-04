@@ -399,7 +399,14 @@ class _CameraScreenState extends State<CameraScreen> {
         _currentPhoto = photoNumber;
       });
 
-      // Countdown: 3, 2, 1
+      // READY
+      setState(() {
+        _countdown = -1;
+      });
+
+      await Future.delayed(const Duration(seconds: 2));
+
+      // 3 → 2 → 1
       for (int count = 3; count >= 1; count--) {
         if (!mounted) return;
 
@@ -434,7 +441,7 @@ class _CameraScreenState extends State<CameraScreen> {
         return;
       }
 
-      // Short pause before next countdown.
+      // Small pause before the next photo
       if (photoNumber < 4) {
         await Future.delayed(const Duration(milliseconds: 800));
       }
@@ -606,18 +613,30 @@ class _CameraScreenState extends State<CameraScreen> {
             // ==================================================
             // COUNTDOWN
             // ==================================================
-            if (_countdown > 0)
-              Positioned.fill(
-                child: Center(
-                  child: Text(
-                    '$_countdown',
-                    style: const TextStyle(
-                      color: Color(0xFFF2E7D0),
-                      fontSize: 100,
-                      fontWeight: FontWeight.bold,
-                      shadows: [Shadow(color: Colors.black87, blurRadius: 15)],
+            if (_countdown != 0)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _countdown == -1 ? 'READY' : '$_countdown',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 64,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
+
+                    if (_countdown == -1)
+                      const Text(
+                        'Get ready...',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                  ],
                 ),
               ),
 
