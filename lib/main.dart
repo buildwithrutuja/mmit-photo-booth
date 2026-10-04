@@ -1,6 +1,11 @@
+import 'package:flutter/services.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const PhotoBoothApp());
 }
 
@@ -26,6 +31,13 @@ class PhotoBoothApp extends StatelessWidget {
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
+  void _openCamera(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CameraScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -39,6 +51,7 @@ class WelcomeScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Team name
                     const Text(
                       'SHENOVA',
                       style: TextStyle(
@@ -83,7 +96,6 @@ class WelcomeScreen extends StatelessWidget {
                               color: Color(0xFF3B2A24),
                             ),
                           ),
-
                           Positioned(
                             top: 8,
                             right: 10,
@@ -158,6 +170,7 @@ class WelcomeScreen extends StatelessWidget {
 
                     const SizedBox(height: 18),
 
+                    // Tagline
                     const Text(
                       'CAPTURE THE MOMENT',
                       style: TextStyle(
@@ -175,9 +188,7 @@ class WelcomeScreen extends StatelessWidget {
                       width: 230,
                       height: 62,
                       child: ElevatedButton(
-                        onPressed: () {
-                          // Camera screen will be connected in Milestone 2.
-                        },
+                        onPressed: () => _openCamera(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF8E2F35),
                           foregroundColor: const Color(0xFFF8EEDB),
@@ -204,6 +215,7 @@ class WelcomeScreen extends StatelessWidget {
 
                     const SizedBox(height: 34),
 
+                    // College text
                     const Text(
                       'EST. MMIT COLLEGE',
                       style: TextStyle(
@@ -218,7 +230,7 @@ class WelcomeScreen extends StatelessWidget {
               ),
             ),
 
-            // Decorative top film strip
+            // Top film strip
             Positioned(
               top: 0,
               left: 0,
@@ -243,7 +255,7 @@ class WelcomeScreen extends StatelessWidget {
               ),
             ),
 
-            // Decorative bottom film strip
+            // Bottom film strip
             Positioned(
               bottom: 0,
               left: 0,
@@ -262,6 +274,243 @@ class WelcomeScreen extends StatelessWidget {
                         color: const Color(0xFFF2E7D0),
                         borderRadius: BorderRadius.circular(2),
                       ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// CAMERA SCREEN
+// ============================================================
+
+class CameraScreen extends StatefulWidget {
+  const CameraScreen({super.key});
+
+  @override
+  State<CameraScreen> createState() => _CameraScreenState();
+}
+
+class _CameraScreenState extends State<CameraScreen> {
+  CameraController? _controller;
+
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      final cameras = await availableCameras();
+
+      if (cameras.isEmpty) {
+        throw Exception('No camera was found on this device.');
+      }
+
+      // Select the FRONT camera.
+      CameraDescription selectedCamera = cameras.first;
+
+      for (final camera in cameras) {
+        if (camera.lensDirection == CameraLensDirection.front) {
+          selectedCamera = camera;
+          break;
+        }
+      }
+
+      final controller = CameraController(
+        selectedCamera,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+
+      _controller = controller;
+
+      await controller.initialize();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+    } on CameraException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+
+        if (e.code == 'CameraAccessDenied') {
+          _errorMessage = 'Camera permission was denied.';
+        } else {
+          _errorMessage = 'Unable to access the camera.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Unable to start the camera.';
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Camera is still initializing.
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF0B0B0B),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFFF2E7D0)),
+        ),
+      );
+    }
+
+    // Camera failed.
+    if (_errorMessage != null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF3B2A24),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.camera_alt_outlined,
+                  color: Color(0xFFF2E7D0),
+                  size: 64,
+                ),
+
+                const SizedBox(height: 24),
+
+                Text(
+                  _errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFF2E7D0),
+                    fontSize: 18,
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('BACK'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final controller = _controller!;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Live front-camera preview
+            Positioned.fill(
+              child: ClipRect(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: controller.value.previewSize!.height,
+                    height: controller.value.previewSize!.width,
+                    child: CameraPreview(controller),
+                  ),
+                ),
+              ),
+            ),
+            // Live front-camera preview
+
+            // Vintage top bar
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 65,
+                color: const Color(0xCC3B2A24),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: Color(0xFFF2E7D0),
+                      ),
+                    ),
+
+                    const Spacer(),
+
+                    const Text(
+                      'SHENOVA • MMIT',
+                      style: TextStyle(
+                        color: Color(0xFFF2E7D0),
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                      ),
+                    ),
+
+                    const Spacer(),
+
+                    const SizedBox(width: 48),
+                  ],
+                ),
+              ),
+            ),
+
+            // Camera status
+            Positioned(
+              bottom: 25,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xCC3B2A24),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'READY',
+                    style: TextStyle(
+                      color: Color(0xFFF2E7D0),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 3,
                     ),
                   ),
                 ),
