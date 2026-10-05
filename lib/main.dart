@@ -5,10 +5,18 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  await Supabase.initialize(
+    url: 'https://ysvdpndjhenwobslccxb.supabase.co',
+    publishableKey: 'sb_publishable_PvwrcBIU31AXfi-a6SB5kQ_9-Qbibm0',
+  );
+
   runApp(const PhotoBoothApp());
 }
 
@@ -1340,6 +1348,48 @@ class FilmStripScreen extends StatelessWidget {
 
   const FilmStripScreen({super.key, required this.filmStrip});
 
+  Future<void> _uploadFilmStrip(
+    BuildContext context,
+    Uint8List imageBytes,
+  ) async {
+    try {
+      final fileName =
+          'film_strip_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      final filePath = 'public/$fileName';
+
+      final supabase = Supabase.instance.client;
+
+      await supabase.storage
+          .from('mmit-photo-booth')
+          .uploadBinary(
+            filePath,
+            imageBytes,
+            fileOptions: const FileOptions(
+              contentType: 'image/jpeg',
+              upsert: false,
+            ),
+          );
+
+      final imageUrl = supabase.storage
+          .from('mmit-photo-booth')
+          .getPublicUrl(filePath);
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Film strip uploaded successfully!')),
+      );
+
+      debugPrint('FILM STRIP URL: $imageUrl');
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final imageBytes = Uint8List.fromList(
@@ -1425,12 +1475,8 @@ class FilmStripScreen extends StatelessWidget {
 
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('SAVE will be added next.'),
-                          ),
-                        );
+                      onPressed: () async {
+                        await _uploadFilmStrip(context, imageBytes);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF8E2F35),
@@ -1438,7 +1484,7 @@ class FilmStripScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: const Text(
-                        'SAVE',
+                        'UPLOAD',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           letterSpacing: 2,
