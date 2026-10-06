@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -1348,11 +1349,12 @@ class FilmStripScreen extends StatelessWidget {
 
   const FilmStripScreen({super.key, required this.filmStrip});
 
-  Future<void> _uploadFilmStrip(
-    BuildContext context,
-    Uint8List imageBytes,
-  ) async {
+  Future<void> _uploadAndShowQr(BuildContext context) async {
     try {
+      final imageBytes = Uint8List.fromList(
+        img.encodeJpg(filmStrip, quality: 95),
+      );
+
       final fileName =
           'film_strip_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
@@ -1377,11 +1379,13 @@ class FilmStripScreen extends StatelessWidget {
 
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Film strip uploaded successfully!')),
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              QrCodeScreen(imageUrl: imageUrl, filmStripBytes: imageBytes),
+        ),
       );
-
-      debugPrint('FILM STRIP URL: $imageUrl');
     } catch (e) {
       if (!context.mounted) return;
 
@@ -1475,24 +1479,185 @@ class FilmStripScreen extends StatelessWidget {
 
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () async {
-                        await _uploadFilmStrip(context, imageBytes);
-                      },
+                      onPressed: () => _uploadAndShowQr(context),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF8E2F35),
                         foregroundColor: const Color(0xFFF8EEDB),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: const Text(
-                        'UPLOAD',
+                        'GET QR CODE',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
+                          letterSpacing: 1.5,
                         ),
                       ),
                     ),
                   ),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class QrCodeScreen extends StatelessWidget {
+  final String imageUrl;
+  final Uint8List filmStripBytes;
+
+  const QrCodeScreen({
+    super.key,
+    required this.imageUrl,
+    required this.filmStripBytes,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2E7D0),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // HEADER
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Color(0xFF3B2A24),
+                    ),
+                  ),
+
+                  const Expanded(
+                    child: Text(
+                      'YOUR PHOTO IS READY',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF3B2A24),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 48),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // FINAL PHOTO
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const Text(
+                      'YOUR FILM STRIP',
+                      style: TextStyle(
+                        color: Color(0xFF8B6F47),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 70),
+                      child: Image.memory(filmStripBytes, fit: BoxFit.contain),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // QR CODE
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFF8B6F47),
+                          width: 2,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x333B2A24),
+                            blurRadius: 8,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: QrImageView(
+                        data: imageUrl,
+                        version: QrVersions.auto,
+                        size: 220,
+                        backgroundColor: Colors.white,
+                        errorCorrectionLevel: QrErrorCorrectLevel.M,
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    const Text(
+                      'SCAN TO GET YOUR PHOTO',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF3B2A24),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 30),
+                      child: Text(
+                        'Scan this QR code with your phone camera.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF6B5145),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // DONE BUTTON
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8E2F35),
+                    foregroundColor: const Color(0xFFF8EEDB),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text(
+                    'DONE',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
